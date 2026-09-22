@@ -1,3 +1,33 @@
+# ============================================
+# Configuração da aplicação
+# ============================================
+server:
+  port: 8080
+
 spring:
   application:
-    name: pessoal
+    name: agente-pessoal
+
+  # Configuração do Spring AI + OpenRouter
+  ai:
+    openai:
+      # Chave de API via variável de ambiente (NUNCA hardcoded)
+      api-key: ${OPENROUTER_API_KEY}
+      # Endpoint compatível com OpenAI (OpenRouter usa este formato)
+      base-url: https://openrouter.ai/api
+      chat:
+        options:
+          # Modelo gratuito 
+          model: deepseek/deepseek-chat-v3-0324:free
+          # Equilíbrio entre criatividade e precisão
+          temperature: 0.7
+
+# Configuração do Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
