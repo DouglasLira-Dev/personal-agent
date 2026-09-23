@@ -7,6 +7,9 @@ server:
 spring:
   application:
     name: agente-pessoal
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
 
   # Configuração do Spring AI + OpenRouter
   ai:
