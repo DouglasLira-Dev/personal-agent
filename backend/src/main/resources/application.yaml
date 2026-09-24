@@ -7,9 +7,6 @@ server:
 spring:
   application:
     name: agente-pessoal
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
 
   # Configuração do Spring AI + OpenRouter
   ai:
@@ -17,7 +14,7 @@ spring:
       # Chave de API via variável de ambiente (NUNCA hardcoded)
       api-key: ${OPENROUTER_API_KEY}
       # Endpoint compatível com OpenAI (OpenRouter usa este formato)
-      base-url: https://openrouter.ai/api
+      base-url: https://openrouter.ai/api/v1
       chat:
         options:
           # Modelo gratuito 
