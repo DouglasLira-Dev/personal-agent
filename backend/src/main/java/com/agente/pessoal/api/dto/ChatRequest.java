@@ -13,7 +13,6 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record ChatRequest(
 
-    @NotBlank (message = "O sessionId e obrigatorio")
     String sessionId,
 
     @NotBlank (message = "A mensagem e obrigatoria")
