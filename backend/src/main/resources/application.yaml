@@ -17,8 +17,8 @@ spring:
       base-url: https://openrouter.ai/api/v1
       chat:
         options:
-          # Modelo gratuito 
-          model: deepseek/deepseek-chat-v3-0324:free
+          # Modelo gratuito
+          model: openrouter/auto
           # Equilíbrio entre criatividade e precisão
           temperature: 0.7
 
