@@ -1,0 +1,17 @@
+#  CONFIGURAÇÃO DE PRODUCAO RENDER
+
+# ACTUATOR - HEALTH CHECK DO RENDER
+management:
+    endpoint:
+        health:
+            snow-details: never
+    endpoints:
+        web:
+            exposure:
+                include: health
+
+# LOGS - FORMATO LIMPO EM PRODUCAO
+logging:
+    level:
+        root: INFO
+        com.agente.pessoal: INFO
