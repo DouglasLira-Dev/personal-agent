@@ -16,7 +16,7 @@ public class CorsConfig implements WebMvcConfigurer {
      * Em dev: http://localhost:5173
      * Em prod: https://agente-pessoal.vercel.app (e localhost se quiser testar)
      */
-    @Value("${CORS_ALLOWED_ORIGINS:http://localhost:5173, http://127.0.0.1:5173}")
+    @Value("${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}")
     private String[] origensPermitidas;
 
     @Override
