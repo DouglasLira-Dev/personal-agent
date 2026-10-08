@@ -4,6 +4,7 @@ import com.agente.pessoal.agent.AgentRegistry;
 import com.agente.pessoal.agent.base.BaseAgent;
 import com.agente.pessoal.api.dto.ChatRequest;
 import com.agente.pessoal.api.dto.ChatResponse;
+import com.agente.pessoal.api.dto.AgentInfoResponse;
 import com.agente.pessoal.domain.AgentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Servico de orquestracao do chat.
@@ -124,5 +126,18 @@ public class ChatService {
             return UUID.randomUUID().toString();
         }
         return sessionId;
+    }
+
+    /**
+     * Lista os agentes disponiveis para o front-end.
+     *
+     * <p>Exclui o tipo especial {@link AgentType#UNCERTAIN}.</p>
+     *
+     * @return lista de modulos disponiveis
+     */
+    public List<AgentInfoResponse> listarAgentesDisponiveis() {
+        return agentRegistry.getAllAgents().stream()
+                .map(agente -> AgentInfoResponse.from(agente.getTipo()))
+                .toList();
     }
 }
