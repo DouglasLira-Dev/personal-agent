@@ -2,17 +2,17 @@ package com.agente.pessoal.application;
 
 import com.agente.pessoal.agent.AgentRegistry;
 import com.agente.pessoal.agent.base.BaseAgent;
+import com.agente.pessoal.api.dto.AgentInfoResponse;
 import com.agente.pessoal.api.dto.ChatRequest;
 import com.agente.pessoal.api.dto.ChatResponse;
-import com.agente.pessoal.api.dto.AgentInfoResponse;
 import com.agente.pessoal.domain.AgentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Servico de orquestracao do chat.
@@ -25,6 +25,9 @@ import java.util.List;
  *   <li>Caso contrario, busca o agente no {@link AgentRegistry} e chama</li>
  * </ol>
  * </p>
+ *
+ * <p><b>Privacidade:</b> o conteudo da mensagem NUNCA e logado. Apenas
+ * metadados (sessionId, tamanho, agente escolhido).</p>
  */
 @Service
 public class ChatService {
@@ -66,13 +69,18 @@ public class ChatService {
      */
     public ChatResponse chat(ChatRequest requisicao) {
         String sessionId = normalizarSessionId(requisicao.sessionId());
+        int tamanhoMensagem = requisicao.message() != null ? requisicao.message().length() : 0;
 
-        // Passo 1 e 2: agente explicito tem prioridade
+        log.info("Chat recebido — sessionId: {}, tamanho da mensagem: {}",
+                sessionId, tamanhoMensagem);
+
+        long inicioTotal = System.currentTimeMillis();
+
         AgentType tipoEscolhido = resolverTipo(requisicao);
 
-        // Passo 3: roteador nao conseguiu classificar
         if (tipoEscolhido == AgentType.UNCERTAIN) {
-            log.info("Roteador retornou UNCERTAIN — pedindo esclarecimento ao usuario");
+            log.warn("Chat finalizado com UNCERTAIN — sessionId: {} — solicitando esclarecimento",
+                    sessionId);
             return new ChatResponse(
                     sessionId,
                     AgentType.UNCERTAIN,
@@ -82,11 +90,16 @@ public class ChatService {
             );
         }
 
-        // Passo 4 e 5: busca o agente e chama
         BaseAgent agente = agentRegistry.getAgent(tipoEscolhido);
 
-        log.info("Encaminhando mensagem para agente: {}", tipoEscolhido);
+        long inicioAgente = System.currentTimeMillis();
         String resposta = agente.chat(requisicao.message(), sessionId);
+        long duracaoAgente = System.currentTimeMillis() - inicioAgente;
+
+        long duracaoTotal = System.currentTimeMillis() - inicioTotal;
+
+        log.info("Chat respondido — sessionId: {}, agente: {}, tempo do agente: {} ms, tempo total: {} ms",
+                sessionId, tipoEscolhido, duracaoAgente, duracaoTotal);
 
         return new ChatResponse(
                 sessionId,
@@ -95,6 +108,19 @@ public class ChatService {
                 LocalDateTime.now(),
                 false
         );
+    }
+
+    /**
+     * Lista os agentes disponiveis para o front-end.
+     *
+     * <p>Exclui o tipo especial {@link AgentType#UNCERTAIN}.</p>
+     *
+     * @return lista de modulos disponiveis
+     */
+    public List<AgentInfoResponse> listarAgentesDisponiveis() {
+        return agentRegistry.getAllAgents().stream()
+                .map(agente -> AgentInfoResponse.from(agente.getTipo()))
+                .toList();
     }
 
     /**
@@ -108,10 +134,9 @@ public class ChatService {
      */
     private AgentType resolverTipo(ChatRequest requisicao) {
         if (requisicao.agent() != null && requisicao.agent().isAgenteReal()) {
-            log.info("Agente explicito informado no request: {}", requisicao.agent());
+            log.info("Agente forcado no request: {}", requisicao.agent());
             return requisicao.agent();
         }
-
         return routerService.route(requisicao.message());
     }
 
@@ -126,18 +151,5 @@ public class ChatService {
             return UUID.randomUUID().toString();
         }
         return sessionId;
-    }
-
-    /**
-     * Lista os agentes disponiveis para o front-end.
-     *
-     * <p>Exclui o tipo especial {@link AgentType#UNCERTAIN}.</p>
-     *
-     * @return lista de modulos disponiveis
-     */
-    public List<AgentInfoResponse> listarAgentesDisponiveis() {
-        return agentRegistry.getAllAgents().stream()
-                .map(agente -> AgentInfoResponse.from(agente.getTipo()))
-                .toList();
     }
 }

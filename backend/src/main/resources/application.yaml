@@ -31,3 +31,8 @@ management:
   endpoint:
     health:
       show-details: always
+
+# LOGS - FORMATO LIMPO EM PRODUCAO
+logging:
+    level:
+        com.agente.pessoal: DEBUG
