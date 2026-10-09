@@ -1,17 +1,43 @@
-#  CONFIGURAÇÃO DE PRODUCAO RENDER
+# ============================================
+# Configuracao de producao (Render)
+# ============================================
+spring:
+  # H2 em arquivo no diretorio /app/data (gravável no Render)
+  datasource:
+    url: jdbc:h2:file:/app/data/agente;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
 
-# ACTUATOR - HEALTH CHECK DO RENDER
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  # Console H2 desabilitado em producao
+  h2:
+    console:
+      enabled: false
+
+  ai:
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: true
+
+# Actuator — health check apenas
 management:
-    endpoint:
-        health:
-            snow-details: never
-    endpoints:
-        web:
-            exposure:
-                include: health
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health
 
-# LOGS - FORMATO LIMPO EM PRODUCAO
+# Logs em producao
 logging:
-    level:
-        root: INFO
-        com.agente.pessoal: INFO
+  level:
+    root: INFO
+    com.agente.pessoal: INFO
