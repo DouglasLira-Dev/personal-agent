@@ -8,6 +8,26 @@ spring:
   application:
     name: agente-pessoal
 
+  # ============================================
+  # Banco de dados H2 (modo PostgreSQL)
+  # ============================================
+  datasource:
+    url: jdbc:h2:mem:agente-pessoal;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  # ============================================
+  # JPA / Hibernate
+  # ============================================
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
   # Configuração do Spring AI + OpenRouter
   ai:
     openai:
@@ -21,6 +41,14 @@ spring:
           model: openrouter/auto
           # Equilíbrio entre criatividade e precisão
           temperature: 0.7
+    # ============================================
+    # Memoria de conversa em JDBC
+    # ============================================
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
 
 # Configuração do Actuator
 management:
@@ -34,5 +62,5 @@ management:
 
 # LOGS - FORMATO LIMPO EM PRODUCAO
 logging:
-    level:
-        com.agente.pessoal: DEBUG
+  level:
+    com.agente.pessoal: DEBUG
