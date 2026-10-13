@@ -17,12 +17,16 @@ import java.util.UUID;
 /**
  * Servico de orquestracao do chat.
  *
- * <p>Fluxo:
+ * <p><b>Fluxo:</b>
  * <ol>
- *   <li>Se o request tem agente explicito, usa ele</li>
- *   <li>Caso contrario, consulta o {@link RouterService}</li>
- *   <li>Se o roteador retornar {@link AgentType#UNCERTAIN}, pede esclarecimento</li>
- *   <li>Caso contrario, busca o agente no {@link AgentRegistry} e chama</li>
+ *   <li>Recebe o ChatRequest (sessionId + message)</li>
+ *   <li>Se sessionId vazio, cria nova sessao via SessionService</li>
+ *   <li>Roteia (ou usa agent forcado)</li>
+ *   <li>Salva a mensagem do usuario no banco</li>
+ *   <li>Chama o agente</li>
+ *   <li>Salva a resposta do agente no banco</li>
+ *   <li>Atualiza o titulo se for a primeira mensagem</li>
+ *   <li>Retorna o ChatResponse</li>
  * </ol>
  * </p>
  *
@@ -34,7 +38,12 @@ public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
-    /** Mensagem padrao quando o roteador nao consegue classificar. */
+    /** Papel do usuario nas mensagens persistidas. */
+    private static final String ROLE_USER = "USER";
+
+    /** Papel do assistente nas mensagens persistidas. */
+    private static final String ROLE_ASSISTANT = "ASSISTANT";
+
     private static final String MENSAGEM_ESCLARECIMENTO = """
             Nao consegui identificar com clareza qual modulo deve responder sua pergunta.
 
@@ -49,16 +58,14 @@ public class ChatService {
 
     private final RouterService routerService;
     private final AgentRegistry agentRegistry;
+    private final SessionService sessionService;
 
-    /**
-     * Construtor com injecao das dependencias.
-     *
-     * @param routerService servico de roteamento
-     * @param agentRegistry registro central de agentes
-     */
-    public ChatService(RouterService routerService, AgentRegistry agentRegistry) {
+    public ChatService(RouterService routerService,
+                       AgentRegistry agentRegistry,
+                       SessionService sessionService) {
         this.routerService = routerService;
         this.agentRegistry = agentRegistry;
+        this.sessionService = sessionService;
     }
 
     /**
@@ -68,19 +75,32 @@ public class ChatService {
      * @return resposta do agente com metadados
      */
     public ChatResponse chat(ChatRequest requisicao) {
-        String sessionId = normalizarSessionId(requisicao.sessionId());
-        int tamanhoMensagem = requisicao.message() != null ? requisicao.message().length() : 0;
+        // Passo 1: garante uma sessao valida
+        String sessionId = garantirSessao(requisicao.sessionId());
 
+        int tamanhoMensagem = requisicao.message() != null ? requisicao.message().length() : 0;
         log.info("Chat recebido — sessionId: {}, tamanho da mensagem: {}",
                 sessionId, tamanhoMensagem);
 
         long inicioTotal = System.currentTimeMillis();
 
+        // Passo 2: salva mensagem do usuario ANTES de qualquer chamada ao LLM
+        sessionService.salvarMensagem(
+                sessionId, ROLE_USER, requisicao.message(), null);
+
+        // Passo 3: atualiza o titulo se for a primeira mensagem
+        sessionService.atualizarTituloSeNecessario(sessionId, requisicao.message());
+
+        // Passo 4: roteia
         AgentType tipoEscolhido = resolverTipo(requisicao);
 
+        // Passo 5: trata caso UNCERTAIN
         if (tipoEscolhido == AgentType.UNCERTAIN) {
-            log.warn("Chat finalizado com UNCERTAIN — sessionId: {} — solicitando esclarecimento",
-                    sessionId);
+            log.warn("Chat finalizado com UNCERTAIN — sessionId: {}", sessionId);
+
+            sessionService.salvarMensagem(
+                    sessionId, ROLE_ASSISTANT, MENSAGEM_ESCLARECIMENTO, AgentType.UNCERTAIN);
+
             return new ChatResponse(
                     sessionId,
                     AgentType.UNCERTAIN,
@@ -90,14 +110,18 @@ public class ChatService {
             );
         }
 
+        // Passo 6: chama o agente
         BaseAgent agente = agentRegistry.getAgent(tipoEscolhido);
 
         long inicioAgente = System.currentTimeMillis();
         String resposta = agente.chat(requisicao.message(), sessionId);
         long duracaoAgente = System.currentTimeMillis() - inicioAgente;
 
-        long duracaoTotal = System.currentTimeMillis() - inicioTotal;
+        // Passo 7: salva resposta do agente
+        sessionService.salvarMensagem(
+                sessionId, ROLE_ASSISTANT, resposta, tipoEscolhido);
 
+        long duracaoTotal = System.currentTimeMillis() - inicioTotal;
         log.info("Chat respondido — sessionId: {}, agente: {}, tempo do agente: {} ms, tempo total: {} ms",
                 sessionId, tipoEscolhido, duracaoAgente, duracaoTotal);
 
@@ -113,8 +137,6 @@ public class ChatService {
     /**
      * Lista os agentes disponiveis para o front-end.
      *
-     * <p>Exclui o tipo especial {@link AgentType#UNCERTAIN}.</p>
-     *
      * @return lista de modulos disponiveis
      */
     public List<AgentInfoResponse> listarAgentesDisponiveis() {
@@ -124,10 +146,32 @@ public class ChatService {
     }
 
     /**
-     * Resolve qual {@link AgentType} deve responder.
+     * Garante que existe uma sessao valida.
      *
-     * <p>Se o request tem agente explicito, respeita. Caso contrario,
-     * consulta o roteador.</p>
+     * <p>Se o sessionId vier vazio, cria uma nova sessao. Se vier preenchido
+     * mas a sessao nao existir, cria com o ID informado (compatibilidade
+     * com sessoes antigas ou geradas fora deste servico).</p>
+     *
+     * @param sessionId sessionId recebido na requisicao (pode ser nulo/vazio)
+     * @return o sessionId valido (novo ou existente)
+     */
+    private String garantirSessao(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            String novoId = sessionService.criarSessao().getId();
+            log.info("Sessao criada automaticamente: {}", novoId);
+            return novoId;
+        }
+
+        if (sessionService.buscarSessao(sessionId).isEmpty()) {
+            sessionService.criarSessaoComId(sessionId);
+            log.info("Sessao criada com ID informado: {}", sessionId);
+        }
+
+        return sessionId;
+    }
+
+    /**
+     * Resolve qual {@link AgentType} deve responder.
      *
      * @param requisicao requisicao do usuario
      * @return tipo do agente a usar (pode ser UNCERTAIN)
@@ -138,18 +182,5 @@ public class ChatService {
             return requisicao.agent();
         }
         return routerService.route(requisicao.message());
-    }
-
-    /**
-     * Garante que o sessionId nunca seja nulo ou vazio.
-     *
-     * @param sessionId identificador recebido na requisicao
-     * @return sessionId valido (o original ou um UUID novo)
-     */
-    private String normalizarSessionId(String sessionId) {
-        if (sessionId == null || sessionId.isBlank()) {
-            return UUID.randomUUID().toString();
-        }
-        return sessionId;
     }
 }

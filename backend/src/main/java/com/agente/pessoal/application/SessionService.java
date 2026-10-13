@@ -202,6 +202,32 @@ public class SessionService {
     }
 
     // ============================================
+    // Metodos auxiliares
+    // ============================================
+
+    /**
+     * Cria uma conversa com um ID especifico.
+     *
+     * <p>Util quando o front-end gera o UUID e o back-end precisa
+     * garantir que a sessao existe antes de persistir mensagens.</p>
+     *
+     * @param id UUID da conversa (nao pode ser nulo ou vazio)
+     * @return a conversa criada
+     */
+    @Transactional
+    public ConversationEntity criarSessaoComId(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("ID da sessao nao pode ser vazio");
+        }
+
+        ConversationEntity conversa = new ConversationEntity(id);
+        ConversationEntity salva = conversationRepository.save(conversa);
+
+        log.info("Sessao criada com ID informado: {}", salva.getId());
+        return salva;
+    }
+
+    // ============================================
     // Metodos privados
     // ============================================
 
