@@ -5,6 +5,7 @@ import com.agente.pessoal.api.dto.ChatRequest;
 import com.agente.pessoal.api.dto.ChatResponse;
 import com.agente.pessoal.application.ChatService;
 import com.agente.pessoal.domain.AgentType;
+import com.agente.pessoal.exception.AgentNotFoundException;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,13 +96,14 @@ public class ChatController {
      * @throws IllegalArgumentException se o codigo nao corresponder a um agente real
      */
     private AgentType converterAgent(String agent) {
-        AgentType tipo = AgentType.porCodigo(agent);
-
-        if (!tipo.isAgenteReal()) {
-            throw new IllegalArgumentException(
-                    "Nao e possivel forcar o tipo especial: " + agent);
+        try {
+            AgentType tipo = AgentType.porCodigo(agent);
+            if (!tipo.isAgenteReal()) {
+                throw new AgentNotFoundException(agent);
+            }
+            return tipo;
+        } catch (IllegalArgumentException e) {
+            throw new AgentNotFoundException(agent);
         }
-
-        return tipo;
     }
 }

@@ -6,6 +6,7 @@ import com.agente.pessoal.api.dto.SessionDetailDTO;
 import com.agente.pessoal.application.SessionService;
 import com.agente.pessoal.persistence.entity.ConversationEntity;
 import com.agente.pessoal.persistence.entity.MessageEntity;
+import com.agente.pessoal.exception.SessionNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -82,13 +83,9 @@ public class SessionController {
                             .map(MessageDTO::from)
                             .toList();
 
-                    SessionDetailDTO dto = SessionDetailDTO.from(conversa, mensagens);
-                    return ResponseEntity.ok(dto);
+                    return ResponseEntity.ok(SessionDetailDTO.from(conversa, mensagens));
                 })
-                .orElseGet(() -> {
-                    log.warn("Sessao nao encontrada: {}", id);
-                    return ResponseEntity.notFound().build();
-                });
+                .orElseThrow(() -> new SessionNotFoundException(id));
     }
 
     /**
@@ -101,12 +98,11 @@ public class SessionController {
     public ResponseEntity<Void> deletarSessao(@PathVariable String id) {
         boolean removida = sessionService.deletarSessao(id);
 
-        if (removida) {
-            log.info("Sessao removida via API: {}", id);
-            return ResponseEntity.noContent().build();
+        if (!removida) {
+            throw new SessionNotFoundException(id);
         }
 
-        log.warn("Tentativa de deletar sessao inexistente via API: {}", id);
-        return ResponseEntity.notFound().build();
+        log.info("Sessao removida via API: {}", id);
+        return ResponseEntity.noContent().build();
     }
 }
