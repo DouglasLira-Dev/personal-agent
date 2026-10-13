@@ -24,7 +24,7 @@ spring:
       memory:
         repository:
           jdbc:
-            initialize-schema: true
+            initialize-schema: always
 
 # Actuator — health check apenas
 management:
